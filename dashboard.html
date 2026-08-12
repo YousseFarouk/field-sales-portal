@@ -7,6 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Cairo:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   :root{
     --bg:#F5F6F2; --card:#FFFFFF; --text:#1C2321; --muted:#6B7280; --border:#E5E2D8;
@@ -20,6 +27,13 @@
   body{background:var(--bg); color:var(--text); font-family:'Tajawal',sans-serif; padding-bottom:40px;}
   h1,h2,h3,.num{font-family:'Cairo',sans-serif;}
   ::-webkit-scrollbar{height:6px; width:6px;}
+
+  /* ===== Loading overlay ===== */
+  #loadingOverlay{position:fixed; inset:0; background:rgba(255,255,255,0.9); z-index:9999; display:flex; justify-content:center; align-items:center; flex-direction:column;}
+  .spinner{width:50px; height:50px; border:5px solid var(--border); border-top-color:var(--primary); border-radius:50%; animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loadErrorBox{display:none; text-align:center;}
+  #loadErrorBox button{margin-top:12px; background:var(--primary); color:#fff; border:none; padding:10px 20px; border-radius:8px; font-family:inherit; font-weight:700; cursor:pointer;}
 
   .topbar{
     position:sticky; top:0; z-index:20; background:var(--primary); color:#fff;
@@ -57,6 +71,10 @@
   .kpi .icon{font-size:18px;}
   .kpi .v{font-size:19px; font-weight:800; margin:2px 0;}
   .kpi .l{font-size:10.5px; color:var(--muted);}
+  .kpi.clickable{cursor:pointer;}
+  .kpi.active-drill{outline:2.5px solid var(--primary);}
+  .kpi .tap-hint{font-size:0.7rem; color:var(--primary); font-weight:700; margin-top:4px; display:none;}
+  .kpi.clickable .tap-hint{display:block;}
 
   .outstanding-banner{
     display:flex; align-items:center; justify-content:space-between;
@@ -73,6 +91,9 @@
   .owe-item .amt{font-weight:800; color:var(--danger); font-family:'Cairo',sans-serif;}
 
   #map{height:280px; border-radius:13px; overflow:hidden; z-index:1;}
+  .map-controls{display:flex; gap:8px; margin-bottom:8px;}
+  .map-btn{padding:6px 12px; border:1px solid var(--border); background:var(--bg); border-radius:8px; cursor:pointer; font-family:inherit; font-weight:600; font-size:0.85rem;}
+  .map-btn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
 
   .chart-wrap{position:relative; height:210px;}
 
@@ -108,25 +129,29 @@
   .client-row .name{font-weight:700; font-size:14px;}
   .client-row .sub{font-size:11.5px; color:var(--muted); margin-top:2px;}
   .client-row .actions{display:flex; gap:6px;}
-  .icon-btn{
-    border:none; background:var(--bg); border-radius:9px; padding:6px 9px; cursor:pointer; font-size:13px;
-  }
+  .icon-btn{border:none; background:var(--bg); border-radius:9px; padding:6px 9px; cursor:pointer; font-size:13px;}
   .edit-panel{display:none; margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);}
   .edit-panel.open{display:block;}
   .edit-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;}
-  .edit-grid input{
-    border:1.5px solid var(--border); border-radius:9px; padding:8px 10px; font-family:'Tajawal',sans-serif;
-    font-size:13px; outline:none;
-  }
+  .edit-grid input{border:1.5px solid var(--border); border-radius:9px; padding:8px 10px; font-family:'Tajawal',sans-serif; font-size:13px; outline:none;}
   .edit-actions{display:flex; gap:8px;}
-  .btn-sm{
-    flex:1; border:none; border-radius:9px; padding:9px; font-family:'Tajawal',sans-serif;
-    font-weight:700; font-size:12.5px; cursor:pointer;
-  }
+  .btn-sm{flex:1; border:none; border-radius:9px; padding:9px; font-family:'Tajawal',sans-serif; font-weight:700; font-size:12.5px; cursor:pointer;}
   .btn-save{background:var(--primary); color:#fff;}
   .btn-delete{background:var(--danger-tint); color:var(--danger);}
 
   .empty-state{text-align:center; padding:20px 10px; color:var(--muted); font-size:13px;}
+
+  /* Drill-down */
+  #drillDownCard{display:none;}
+  .dd-header{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  .dd-title{font-size:15px; font-weight:800; color:var(--primary); display:flex; align-items:center; gap:8px;}
+  .dd-count{background:var(--primary-tint); color:var(--primary-dark); padding:2px 10px; border-radius:20px; font-size:12px; font-weight:700;}
+  .dd-scope-note{font-size:12px; color:var(--muted); margin-bottom:12px;}
+  .dd-close{background:none; border:none; font-size:20px; color:var(--muted); cursor:pointer;}
+  .dd-table{width:100%; border-collapse:collapse; font-size:12px;}
+  .dd-table th{text-align:right; padding:8px 6px; border-bottom:1.5px solid var(--border); color:var(--muted); font-size:11px;}
+  .dd-table td{padding:8px 6px; border-bottom:1px solid var(--border);}
+  .dd-scroll{max-height:420px; overflow-y:auto;}
 
   .toast{
     position:fixed; top:16px; right:16px; left:16px; z-index:50; background:var(--primary); color:#fff;
@@ -152,6 +177,14 @@
 </head>
 <body>
 
+<div id="loadingOverlay">
+  <div class="spinner" id="loadSpinner"></div>
+  <p style="margin-top:15px; font-weight:700; color:var(--primary);" id="loadingText">جاري تحميل البيانات...</p>
+  <div id="loadErrorBox">
+    <button onclick="location.reload()">إعادة المحاولة</button>
+  </div>
+</div>
+
 <div class="gate hidden" id="gate">
   <div class="gate-card">
     <h1>🔒 كود الدخول</h1>
@@ -174,21 +207,55 @@
         <button class="period-btn" data-period="all">الكل</button>
       </div>
       <select id="rep-filter"><option value="">كل المناديب</option></select>
+      <input type="date" id="startDate" title="من تاريخ">
+      <input type="date" id="endDate" title="إلى تاريخ">
       <button class="export-btn" id="export-btn">📥 تصدير Excel</button>
     </div>
   </div>
 
   <div class="section">
 
+    <!-- KPI Cards + Drill-down -->
     <div class="card">
-      <h2>نظرة اليوم</h2>
+      <h2>نظرة عامة</h2>
       <div class="kpi-grid">
-        <div class="kpi"><div class="icon">📋</div><div class="v num" id="kpi-total">0</div><div class="l">إجمالي الزيارات</div></div>
-        <div class="kpi"><div class="icon">✅</div><div class="v num" id="kpi-done">0</div><div class="l">تمت بنجاح</div></div>
-        <div class="kpi"><div class="icon">❌</div><div class="v num" id="kpi-notdone">0</div><div class="l">لم تتم</div></div>
-        <div class="kpi"><div class="icon">📈</div><div class="v num" id="kpi-rate">0%</div><div class="l">نسبة الإنجاز</div></div>
-        <div class="kpi"><div class="icon">💰</div><div class="v num" id="kpi-avg">0</div><div class="l">متوسط الفاتورة</div></div>
-        <div class="kpi"><div class="icon">🧾</div><div class="v num" id="kpi-invoiced">0</div><div class="l">إجمالي الفواتير</div></div>
+        <div class="kpi clickable" id="cardDone">
+          <div class="icon">✅</div><div class="v num" id="kpi-done">0</div><div class="l">تمت بنجاح</div>
+          <div class="tap-hint">اضغط للتفاصيل</div>
+        </div>
+        <div class="kpi clickable" id="cardNotDone">
+          <div class="icon">❌</div><div class="v num" id="kpi-notdone">0</div><div class="l">لم تتم</div>
+          <div class="tap-hint">اضغط للتفاصيل</div>
+        </div>
+        <div class="kpi clickable" id="cardRemaining">
+          <div class="icon">⏳</div><div class="v num" id="kpi-remaining">0</div>
+          <div class="l">المتبقي <span id="remaining-scope" style="font-size:9px;"></span></div>
+          <div class="tap-hint">اضغط للتفاصيل</div>
+        </div>
+        <div class="kpi">
+          <div class="icon">📈</div><div class="v num" id="kpi-rate">0%</div><div class="l">نسبة الإنجاز <span id="kpi-rate-note" style="font-size:9px;"></span></div>
+        </div>
+        <div class="kpi">
+          <div class="icon">💰</div><div class="v num" id="kpi-avg">0</div><div class="l">متوسط الفاتورة</div>
+        </div>
+        <div class="kpi">
+          <div class="icon">🧾</div><div class="v num" id="kpi-invoiced">0</div><div class="l">إجمالي الفواتير</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drill-down Card -->
+    <div class="card" id="drillDownCard">
+      <div class="dd-header">
+        <div class="dd-title"><span id="ddTitleIcon">✅</span> <span id="ddTitleText">تمت بنجاح</span> <span class="dd-count" id="ddCount">0</span></div>
+        <button class="dd-close" id="ddClose">✕</button>
+      </div>
+      <div class="dd-scope-note" id="ddScopeNote"></div>
+      <div class="dd-scroll">
+        <table class="dd-table">
+          <thead><tr><th>الاسم</th><th>التليفون</th><th>المنطقة / العنوان</th><th>آخر فاتورة</th><th>مجموع الفواتير</th></tr></thead>
+          <tbody id="ddTableBody"></tbody>
+        </table>
       </div>
     </div>
 
@@ -203,6 +270,10 @@
 
     <div class="card">
       <h2>🗺️ خريطة الزيارات <small id="map-count"></small></h2>
+      <div class="map-controls">
+        <button class="map-btn active" id="mapHeatBtn">🔥 Heat Map</button>
+        <button class="map-btn" id="mapPointsBtn">📍 نقاط</button>
+      </div>
       <div id="map"></div>
     </div>
 
@@ -264,9 +335,6 @@
 
 <div class="toast" id="toast"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function(){
   "use strict";
@@ -276,14 +344,36 @@
   var ACCESS_KEY = params.get('key') || sessionStorage.getItem('fsp_key') || '';
   var WS_NAME = params.get('ws') || '';
 
-  var data = null; // نتيجة getDashboardData كاملة
+  var data = null;
   var currentPeriod = 'today';
   var currentRep = '';
-  var map = null, markersLayer = null, dailyChart = null, regionChart = null;
+  var map = null, markersLayer = null, heatLayer = null, dailyChart = null, regionChart = null;
+  var currentMapMode = 'heat'; // 'heat' or 'points'
+  var activeDrillDown = null; // 'done' | 'notdone' | 'remaining' | null
+  var showAllRoute = false;
 
   var $ = function(id){ return document.getElementById(id); };
   var gate = $('gate'), gateInput = $('gate-input'), gateSubmit = $('gate-submit'), gateErr = $('gate-err');
   var app = $('app');
+  var loadingOverlay = $('loadingOverlay');
+
+  // ===== أدوات التاريخ المحلية =====
+  function toLocalDateStr(d) {
+    d = new Date(d);
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var day = String(d.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + day;
+  }
+  function weekdayNameOf(dateStr) {
+    var d = new Date(dateStr + 'T12:00:00');
+    return ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][d.getDay()];
+  }
+  function addDaysStr(dateStr, n) {
+    var d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return toLocalDateStr(d);
+  }
 
   function showToast(msg, isError){
     var t = $('toast');
@@ -304,6 +394,7 @@
     if (!val) return;
     ACCESS_KEY = val;
     sessionStorage.setItem('fsp_key', val);
+    gateErr.style.display = 'none';
     gate.classList.add('hidden');
     startApp();
   });
@@ -315,7 +406,8 @@
   }
 
   function apiUrl(action, extraParams){
-    var u = SCRIPT_URL + '?action=' + action + '&key=' + encodeURIComponent(ACCESS_KEY);
+    var separator = SCRIPT_URL.indexOf('?') !== -1 ? '&' : '?';
+    var u = SCRIPT_URL + separator + 'action=' + action + '&key=' + encodeURIComponent(ACCESS_KEY);
     if (extraParams){
       Object.keys(extraParams).forEach(function(k){ u += '&' + k + '=' + encodeURIComponent(extraParams[k]); });
     }
@@ -328,15 +420,21 @@
         if (res.error && res.error.indexOf('مصرح') !== -1){
           sessionStorage.removeItem('fsp_key');
           gate.classList.remove('hidden'); app.style.display = 'none'; gateErr.style.display = 'block';
+          loadingOverlay.style.display = 'none';
           return;
         }
-        showToast(res.error || 'حصل خطأ في التحميل', true);
-        return;
+        throw new Error(res.error || 'حصل خطأ في التحميل');
       }
       data = res.data;
       populateRepFilter();
       renderAll();
-    }).catch(function(){ showToast('مفيش اتصال بالإنترنت', true); });
+      loadingOverlay.style.display = 'none';
+    }).catch(function(err){
+      console.error('loadData error:', err);
+      $('loadingText').textContent = 'تعذر الاتصال: ' + err.message;
+      $('loadSpinner').style.display = 'none';
+      $('loadErrorBox').style.display = 'block';
+    });
   }
 
   function populateRepFilter(){
@@ -350,67 +448,164 @@
     sel.value = currentRep;
   }
 
-  document.querySelectorAll('.period-btn').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      document.querySelectorAll('.period-btn').forEach(function(b){ b.className = 'period-btn'; });
-      this.className = 'period-btn active';
-      currentPeriod = this.dataset.period;
-      renderAll();
-    });
-  });
-  $('rep-filter').addEventListener('change', function(){
-    currentRep = this.value;
-    renderAll();
-  });
-
+  // ===== فلترة الزيارات حسب الفترة والمندوب والتواريخ =====
   function getFilteredVisits(){
-    if (!data) return [];
+    if (!data) return { visits: [], startDateStr: '', endDateStr: '', mode: 'all' };
+    var startDateStr = $('startDate').value;
+    var endDateStr = $('endDate').value;
     var now = new Date();
-    var startDate = null;
+    var startPeriod = null;
+
     if (currentPeriod === 'today'){
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      startPeriod = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     } else if (currentPeriod === '7d'){
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      startPeriod = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
-    return (data.allVisits || []).filter(function(v){
+
+    // إذا تم تحديد تواريخ يدوية، تتجاوز أزرار الفترة
+    var visits = (data.allVisits || []).filter(function(v){
       if (!v.date) return false;
       var d = new Date(v.date);
-      if (startDate && d < startDate) return false;
+      var vDay = toLocalDateStr(v.date);
+
+      // فلترة حسب الأزرار (إذا لم يتم تحديد تواريخ)
+      if (!startDateStr && !endDateStr) {
+        if (currentPeriod === 'today' && startPeriod && d < startPeriod) return false;
+        if (currentPeriod === '7d' && startPeriod && d < startPeriod) return false;
+        // all => لا فلترة زمنية
+      }
+      // فلترة حسب التواريخ اليدوية (لها الأولوية)
+      if (startDateStr && vDay < startDateStr) return false;
+      if (endDateStr && vDay > endDateStr) return false;
+
       if (currentRep && v.repName !== currentRep) return false;
       return true;
     });
+
+    // تحديد mode لاستخدامه في حساب المتبقي ونسبة الإنجاز
+    var mode = (!startDateStr && !endDateStr) ? (currentPeriod === 'all' ? 'all' : (currentPeriod === 'today' ? 'single' : 'range')) : (startDateStr === endDateStr ? 'single' : 'range');
+    if ((startDateStr && !endDateStr) || (!startDateStr && endDateStr)) mode = 'partial';
+
+    return { visits: visits, startDateStr: startDateStr, endDateStr: endDateStr, mode: mode };
   }
 
-  function renderAll(){
-    var visits = getFilteredVisits();
-    renderKPIs(visits);
-    renderOutstanding();
-    renderMap(visits);
-    renderCharts(visits);
-    renderTodayRoute();
-    renderTopLists();
-    renderClientsManage($('client-search').value.trim());
-    renderVisitsTable(visits);
+  // ===== حساب المتبقي (عملاء مجدولين لم يتم زيارتهم) =====
+  function computeRemainingList(mode, startDateStr, endDateStr) {
+    var allClients = data.allClients || [];
+    var allVisitsEver = data.allVisits || [];
+
+    if (mode === 'all' || mode === 'partial') {
+      var everVisitedPhones = {};
+      allVisitsEver.forEach(function(v){ if (v.phone) everVisitedPhones[v.phone.replace(/\s+/g,'')] = true; });
+      return allClients.filter(function(c){
+        var p = (c.phone || '').replace(/\s+/g, '');
+        return !everVisitedPhones[p];
+      });
+    }
+
+    if (mode === 'single') {
+      var weekday = weekdayNameOf(startDateStr);
+      var scheduled = allClients.filter(function(c){ return c.day === weekday; });
+      var visitedPhonesThatDay = {};
+      allVisitsEver.forEach(function(v){
+        if (v.date && toLocalDateStr(v.date) === startDateStr && v.phone) visitedPhonesThatDay[v.phone.replace(/\s+/g,'')] = true;
+      });
+      return scheduled.filter(function(c){
+        var p = (c.phone || '').replace(/\s+/g, '');
+        return !visitedPhonesThatDay[p];
+      });
+    }
+
+    if (mode === 'range') {
+      var missedPhones = {};
+      var cursor = startDateStr;
+      var guard = 0;
+      while (cursor <= endDateStr && guard < 366) {
+        var wd = weekdayNameOf(cursor);
+        var scheduledThatDay = allClients.filter(function(c){ return c.day === wd; });
+        var visitedPhonesThatDay = {};
+        allVisitsEver.forEach(function(v){
+          if (v.date && toLocalDateStr(v.date) === cursor && v.phone) visitedPhonesThatDay[v.phone.replace(/\s+/g,'')] = true;
+        });
+        scheduledThatDay.forEach(function(c){
+          var p = (c.phone || '').replace(/\s+/g, '');
+          if (p && !visitedPhonesThatDay[p]) missedPhones[p] = true;
+        });
+        cursor = addDaysStr(cursor, 1);
+        guard++;
+      }
+      return allClients.filter(function(c){
+        var p = (c.phone || '').replace(/\s+/g, '');
+        return missedPhones[p];
+      });
+    }
+    return [];
   }
 
-  // ===== KPIs =====
-  function renderKPIs(visits){
+  // ===== بناء خريطة العملاء حسب الهاتف =====
+  function buildClientsByPhone() {
+    var map = {};
+    (data.allClients || []).forEach(function(c){
+      var p = (c.phone || '').replace(/\s+/g, '');
+      if (p) map[p] = c;
+    });
+    return map;
+  }
+
+  // ===== حساب جميع المؤشرات =====
+  function renderKPIs(visits, mode, startDateStr, endDateStr) {
     var done = visits.filter(function(v){ return v.status === 'نعم'; });
     var notDone = visits.filter(function(v){ return v.status === 'لا'; });
     var total = visits.length;
-    var rate = total > 0 ? Math.round((done.length / total) * 100) : 0;
     var invoiced = done.reduce(function(s,v){ return s + (v.invoice || 0); }, 0);
     var avg = done.length > 0 ? Math.round(invoiced / done.length) : 0;
 
-    $('kpi-total').textContent = total;
     $('kpi-done').textContent = done.length;
     $('kpi-notdone').textContent = notDone.length;
-    $('kpi-rate').textContent = rate + '%';
     $('kpi-avg').textContent = avg + ' ج';
     $('kpi-invoiced').textContent = invoiced + ' ج';
+
+    // المتبقي
+    var remainingList = computeRemainingList(mode, startDateStr, endDateStr);
+    $('kpi-remaining').textContent = remainingList.length;
+    var scopeLabel = $('remaining-scope');
+    if (mode === 'all') scopeLabel.textContent = 'كل الوقت';
+    else if (mode === 'single') scopeLabel.textContent = (startDateStr === toLocalDateStr(new Date())) ? 'اليوم' : startDateStr;
+    else if (mode === 'range') scopeLabel.textContent = 'المدى المحدد';
+    else scopeLabel.textContent = 'غير محدد';
+
+    // نسبة الإنجاز الذكية
+    var rateText = '0%';
+    var rateNote = '';
+    if (mode === 'single') {
+      var weekday = weekdayNameOf(startDateStr);
+      var scheduledCount = (data.allClients || []).filter(function(c){ return c.day === weekday; }).length;
+      var rate = scheduledCount > 0 ? Math.round((done.length / scheduledCount) * 100) : 0;
+      rateText = rate + '%';
+    } else if (mode === 'range') {
+      var totalSlots = 0;
+      var cursor = startDateStr, guard = 0;
+      while (cursor <= endDateStr && guard < 366) {
+        var wd = weekdayNameOf(cursor);
+        totalSlots += (data.allClients || []).filter(function(c){ return c.day === wd; }).length;
+        cursor = addDaysStr(cursor, 1);
+        guard++;
+      }
+      var rangeRate = totalSlots > 0 ? Math.round((done.length / totalSlots) * 100) : 0;
+      rateText = rangeRate + '%';
+    } else {
+      var attemptedRate = (done.length + notDone.length) > 0 ? Math.round((done.length / (done.length + notDone.length)) * 100) : 0;
+      rateText = attemptedRate + '%';
+      rateNote = '(من المنفذة فقط)';
+    }
+    var rateEl = $('kpi-rate');
+    rateEl.textContent = rateText;
+    $('kpi-rate-note').textContent = rateNote;
+
+    return remainingList;
   }
 
-  // ===== الأرصدة المستحقة =====
+  // ===== عرض الأرصدة المستحقة =====
   function renderOutstanding(){
     var list = data.outstandingClients || [];
     $('total-outstanding').textContent = (data.totalOutstanding || 0) + ' ج';
@@ -435,27 +630,41 @@
   function initMap(){
     map = L.map('map', {zoomControl:true, attributionControl:false}).setView([31.2, 29.9], 12);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    markersLayer = L.layerGroup().addTo(map);
+    markersLayer = L.markerClusterGroup();
+    heatLayer = null;
   }
   function renderMap(visits){
-    markersLayer.clearLayers();
+    if (!map) return;
+    if (markersLayer) map.removeLayer(markersLayer);
+    if (heatLayer) map.removeLayer(heatLayer);
+
     var pts = visits.filter(function(v){ return v.lat && v.lng; });
     $('map-count').textContent = pts.length ? ('(' + pts.length + ' نقطة)') : '';
-    if (pts.length === 0) return;
-    var bounds = [];
-    pts.forEach(function(v){
-      var color = v.status === 'نعم' ? '#0F6B5C' : '#B3432D';
-      var marker = L.circleMarker([v.lat, v.lng], {radius:7, color:color, fillColor:color, fillOpacity:.8, weight:2});
-      marker.bindPopup('<b>' + v.client + '</b><br>' + (v.date ? new Date(v.date).toLocaleDateString('ar-EG') : '') + '<br>' + v.status);
-      marker.addTo(markersLayer);
-      bounds.push([v.lat, v.lng]);
-    });
-    if (bounds.length) map.fitBounds(bounds, {padding:[30,30], maxZoom:15});
+    if (pts.length === 0) {
+      if (heatLayer) map.removeLayer(heatLayer);
+      if (markersLayer) map.removeLayer(markersLayer);
+      return;
+    }
+
+    if (currentMapMode === 'heat') {
+      var heatPoints = pts.map(function(v){ return [v.lat, v.lng, 0.5]; });
+      heatLayer = L.heatLayer(heatPoints, { radius: 25 }).addTo(map);
+      map.fitBounds(L.latLngBounds(heatPoints.map(function(p){return [p[0], p[1]];})), {padding:[20,20]});
+    } else {
+      markersLayer = L.markerClusterGroup();
+      pts.forEach(function(v){
+        var color = v.status === 'نعم' ? '#0F6B5C' : '#B3432D';
+        var marker = L.circleMarker([v.lat, v.lng], {radius:7, color:color, fillColor:color, fillOpacity:.8, weight:2});
+        marker.bindPopup('<b>' + v.client + '</b><br>' + (v.date ? new Date(v.date).toLocaleDateString('ar-EG') : '') + '<br>' + v.status);
+        markersLayer.addLayer(marker);
+      });
+      markersLayer.addTo(map);
+      map.fitBounds(markersLayer.getBounds(), {padding:[20,20]});
+    }
   }
 
   // ===== الرسوم البيانية =====
   function renderCharts(visits){
-    // آخر 14 يوم من كل السجل (مش متأثرة بفلتر الفترة، عشان تفضل مرجع ثابت)
     var days = [];
     for (var i = 13; i >= 0; i--){
       var d = new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate() - i);
@@ -498,37 +707,56 @@
     var body = $('today-route-body');
     var route = data.todayRoute || [];
     if (route.length === 0){ body.innerHTML = '<tr><td colspan="3" class="empty-state">مفيش عملاء مقترحين اليوم</td></tr>'; return; }
-    body.innerHTML = '';
-    route.forEach(function(r){
-      var tr = document.createElement('tr');
+    var limit = showAllRoute ? route.length : 5;
+    var html = route.slice(0, limit).map(function(r){
       var pillClass = r.status === 'نعم' ? 'status-yes' : (r.status === 'لا' ? 'status-no' : 'status-pending');
-      tr.innerHTML = '<td></td><td><span class="status-pill ' + pillClass + '"></span></td><td class="num"></td>';
-      tr.children[0].textContent = r.name;
-      tr.children[1].firstChild.textContent = r.status;
-      tr.children[2].textContent = r.invoice ? (r.invoice + ' ج') : '—';
-      body.appendChild(tr);
-    });
+      return '<tr><td>' + r.name + '</td><td><span class="status-pill ' + pillClass + '">' + r.status + '</span></td><td class="num">' + (r.invoice ? (r.invoice + ' ج') : '—') + '</td></tr>';
+    }).join('');
+    if (route.length > 5 && !showAllRoute) {
+      html += '<tr><td colspan="3"><button class="btn-link" id="show-more-route" style="background:none;border:none;color:var(--primary);cursor:pointer;text-decoration:underline;">عرض المزيد (' + (route.length - 5) + ')</button></td></tr>';
+    }
+    body.innerHTML = html;
+    var btn = $('show-more-route');
+    if (btn) btn.addEventListener('click', function(){ showAllRoute = true; renderTodayRoute(); });
   }
 
-  // ===== قوائم Top =====
-  function renderTopLists(){
+  // ===== قوائم Top ديناميكية حسب الفلتر =====
+  function renderTopLists(visits){
+    var clientTotals = {};
+    visits.forEach(function(v){
+      if (!v.client) return;
+      clientTotals[v.client] = (clientTotals[v.client] || 0) + (v.invoice || 0);
+    });
+    var topClientsArr = Object.keys(clientTotals).map(function(name){ return {name:name, totalInvoices:clientTotals[name]}; })
+      .sort(function(a,b){ return b.totalInvoices - a.totalInvoices; }).filter(function(c){ return c.totalInvoices > 0; }).slice(0, 10);
+
     var tc = $('top-clients-list'); tc.innerHTML = '';
-    (data.topClients || []).filter(function(c){return c.totalInvoices > 0;}).slice(0,6).forEach(function(c){
+    topClientsArr.forEach(function(c){
       var li = document.createElement('li');
       li.innerHTML = '<span class="n"></span><span class="v"></span>';
-      li.children[0].textContent = c.name; li.children[1].textContent = c.totalInvoices + ' ج';
+      li.children[0].textContent = c.name;
+      li.children[1].textContent = c.totalInvoices.toLocaleString('ar-EG') + ' ج';
       tc.appendChild(li);
     });
-    if (!tc.children.length) tc.innerHTML = '<div class="empty-state">مفيش بيانات كفاية</div>';
+    if (!tc.children.length) tc.innerHTML = '<div class="empty-state">مفيش بيانات</div>';
+
+    var reasonsMap = {};
+    visits.filter(function(v){ return v.status === 'لا' && v.reason; }).forEach(function(v){
+      var r = v.reason.trim();
+      if (r.length > 2) reasonsMap[r] = (reasonsMap[r] || 0) + 1;
+    });
+    var reasonsArr = Object.keys(reasonsMap).map(function(r){ return {reason:r, count:reasonsMap[r]}; })
+      .sort(function(a,b){ return b.count - a.count; }).slice(0, 5);
 
     var tr = $('top-reasons-list'); tr.innerHTML = '';
-    (data.topReasons || []).forEach(function(r){
+    reasonsArr.forEach(function(r){
       var li = document.createElement('li');
       li.innerHTML = '<span class="n"></span><span class="v"></span>';
-      li.children[0].textContent = r.reason; li.children[1].textContent = r.count;
+      li.children[0].textContent = r.reason;
+      li.children[1].textContent = r.count;
       tr.appendChild(li);
     });
-    if (!tr.children.length) tr.innerHTML = '<div class="empty-state">مفيش بيانات كفاية</div>';
+    if (!tr.children.length) tr.innerHTML = '<div class="empty-state">مفيش أسباب</div>';
   }
 
   // ===== إدارة العملاء =====
@@ -588,7 +816,7 @@
           .then(function(r){ return r.json(); }).then(function(res){
             if (res.ok){ showToast('✅ اتحدث بنجاح'); loadData(); }
             else { showToast(res.message || 'حصل خطأ', true); }
-          }).catch(function(){ showToast('مفيش اتصال', true); });
+          }).catch(function(err){ console.error(err); showToast('مفيش اتصال', true); });
       });
 
       row.querySelector('.btn-delete').addEventListener('click', function(){
@@ -596,7 +824,7 @@
         fetch(apiUrl('deleteClient', {phone:c.phone})).then(function(r){ return r.json(); }).then(function(res){
           if (res.ok){ showToast('تم الحذف'); loadData(); }
           else { showToast(res.message || 'حصل خطأ', true); }
-        }).catch(function(){ showToast('مفيش اتصال', true); });
+        }).catch(function(err){ console.error(err); showToast('مفيش اتصال', true); });
       });
 
       list.appendChild(row);
@@ -613,7 +841,7 @@
       .then(function(r){ return r.json(); }).then(function(res){
         if (res.ok){ showToast('✅ ' + res.message); loadData(); }
         else { showToast(res.message || 'حصل خطأ', true); }
-      }).catch(function(){ showToast('مفيش اتصال', true); });
+      }).catch(function(err){ console.error(err); showToast('مفيش اتصال', true); });
   });
 
   // ===== سجل الزيارات =====
@@ -642,7 +870,8 @@
 
   // ===== تصدير Excel =====
   $('export-btn').addEventListener('click', function(){
-    var visits = getFilteredVisits();
+    var f = getFilteredVisits();
+    var visits = f.visits;
     if (visits.length === 0){ showToast('مفيش بيانات تتصدر في الفترة دي', true); return; }
     var rows = visits.map(function(v){
       return {
@@ -655,8 +884,145 @@
     var ws = XLSX.utils.json_to_sheet(rows);
     var wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'الزيارات');
-    XLSX.writeFile(wb, 'زيارات-' + new Date().toISOString().slice(0,10) + '.xlsx');
+    var scopeForName = (!f.startDateStr && !f.endDateStr) ? 'الكل' : (f.startDateStr === f.endDateStr ? f.startDateStr : (f.startDateStr || 'بداية') + '_الى_' + (f.endDateStr || 'نهاية'));
+    XLSX.writeFile(wb, 'زيارات-' + scopeForName + '.xlsx');
   });
+
+  // ===== الأحداث =====
+  document.querySelectorAll('.period-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.period-btn').forEach(function(b){ b.className = 'period-btn'; });
+      this.className = 'period-btn active';
+      currentPeriod = this.dataset.period;
+      // عند اختيار زر فترة، نمسح التواريخ اليدوية
+      $('startDate').value = '';
+      $('endDate').value = '';
+      renderAll();
+    });
+  });
+
+  $('rep-filter').addEventListener('change', function(){
+    currentRep = this.value;
+    renderAll();
+  });
+
+  $('startDate').addEventListener('change', function(){
+    // إلغاء تفعيل أزرار الفترة
+    document.querySelectorAll('.period-btn').forEach(function(b){ b.className = 'period-btn'; });
+    renderAll();
+  });
+  $('endDate').addEventListener('change', function(){
+    document.querySelectorAll('.period-btn').forEach(function(b){ b.className = 'period-btn'; });
+    renderAll();
+  });
+
+  // أزرار الخريطة
+  $('mapHeatBtn').addEventListener('click', function(){ currentMapMode = 'heat'; $('mapHeatBtn').classList.add('active'); $('mapPointsBtn').classList.remove('active'); renderMap(getFilteredVisits().visits); });
+  $('mapPointsBtn').addEventListener('click', function(){ currentMapMode = 'points'; $('mapPointsBtn').classList.add('active'); $('mapHeatBtn').classList.remove('active'); renderMap(getFilteredVisits().visits); });
+
+  // Drill-down
+  function toggleDrillDown(kind) {
+    if (activeDrillDown === kind) { closeDrillDown(); return; }
+    activeDrillDown = kind;
+    document.querySelectorAll('.kpi.clickable').forEach(function(c){ c.classList.remove('active-drill'); });
+    var cardIdMap = { done: 'cardDone', notdone: 'cardNotDone', remaining: 'cardRemaining' };
+    document.getElementById(cardIdMap[kind]).classList.add('active-drill');
+    document.getElementById('drillDownCard').style.display = 'block';
+    renderDrillDown(kind);
+    document.getElementById('drillDownCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+  function closeDrillDown() {
+    activeDrillDown = null;
+    document.querySelectorAll('.kpi.clickable').forEach(function(c){ c.classList.remove('active-drill'); });
+    document.getElementById('drillDownCard').style.display = 'none';
+  }
+  function ddRow(name, phone, locationText, mapLink, lastInvoice, totalInvoices) {
+    var nameCell = mapLink
+      ? '<a class="dd-name-link" href="' + mapLink + '" target="_blank" title="' + (locationText || '') + '">' + name + '</a>'
+      : '<span class="dd-name-plain" title="' + (locationText || '') + '">' + name + '</span>';
+    return '<tr>' +
+      '<td>' + nameCell + '</td>' +
+      '<td>' + (phone || '-') + '</td>' +
+      '<td>' + (locationText || '-') + '</td>' +
+      '<td>' + (lastInvoice ? Number(lastInvoice).toLocaleString('ar-EG') + ' ج' : '-') + '</td>' +
+      '<td>' + (totalInvoices ? Number(totalInvoices).toLocaleString('ar-EG') + ' ج' : '-') + '</td>' +
+      '</tr>';
+  }
+  function renderDrillDown(kind) {
+    var f = getFilteredVisits();
+    var visits = f.visits;
+    var startDateStr = f.startDateStr, endDateStr = f.endDateStr;
+    var clientsByPhone = buildClientsByPhone();
+
+    var iconMap = { done: '✅', notdone: '❌', remaining: '⏳' };
+    var titleMap = { done: 'تمت بنجاح', notdone: 'لم تتم', remaining: 'المتبقي' };
+    document.getElementById('ddTitleIcon').textContent = iconMap[kind];
+    document.getElementById('ddTitleText').textContent = titleMap[kind];
+
+    var rowsHtml = '';
+    var count = 0;
+
+    if (kind === 'done' || kind === 'notdone') {
+      var wantedStatus = kind === 'done' ? 'نعم' : 'لا';
+      var rows = visits.filter(function(v){ return v.status === wantedStatus; });
+      count = rows.length;
+      rowsHtml = rows.map(function(v){
+        var phoneClean = (v.phone || '').replace(/\s+/g, '');
+        var clientInfo = clientsByPhone[phoneClean];
+        var locationText = v.detailedAddress || v.region || (clientInfo ? (clientInfo.manualAddress || clientInfo.region) : '') || '';
+        var lastInv = clientInfo ? clientInfo.lastInvoice : v.invoice;
+        var totalInv = clientInfo ? clientInfo.totalInvoices : v.invoice;
+        return ddRow(v.client, v.phone, locationText, v.mapLink, lastInv, totalInv);
+      }).join('');
+      var scopeText = (!startDateStr && !endDateStr) ? 'كل الوقت' : (startDateStr === endDateStr) ? ('يوم ' + startDateStr) : ((startDateStr || '...') + ' إلى ' + (endDateStr || '...'));
+      document.getElementById('ddScopeNote').textContent = 'النطاق الحالي: ' + scopeText;
+    } else if (kind === 'remaining') {
+      var mode = getRemainingMode(startDateStr, endDateStr);
+      var list = computeRemainingList(mode, startDateStr, endDateStr);
+      count = list.length;
+      rowsHtml = list.map(function(c){
+        var locationText = c.manualAddress || c.autoAddress || c.region || '';
+        return ddRow(c.name, c.phone, locationText, '', c.lastInvoice, c.totalInvoices);
+      }).join('');
+      var noteMap = {
+        all: 'عملاء لم تتم زيارتهم إطلاقًا (كل الوقت)',
+        single: 'عملاء مجدولين ليوم ' + startDateStr + ' ولم تتم زيارتهم بعد',
+        range: 'عملاء فاتهم موعد واحد على الأقل بين ' + startDateStr + ' و ' + endDateStr,
+        partial: 'حدد مدى تاريخ كامل (من وإلى) لعرض المتبقي بدقة حسب الجدول — النتيجة الحالية لعملاء لم تتم زيارتهم إطلاقًا'
+      };
+      document.getElementById('ddScopeNote').textContent = noteMap[mode] || '';
+    }
+
+    document.getElementById('ddCount').textContent = count;
+    document.getElementById('ddTableBody').innerHTML = rowsHtml || '<tr><td colspan="5" class="dd-empty">لا يوجد</td></tr>';
+  }
+  function getRemainingMode(startDateStr, endDateStr) {
+    if (!startDateStr && !endDateStr) return 'all';
+    if (startDateStr && endDateStr && startDateStr === endDateStr) return 'single';
+    if (startDateStr && endDateStr && startDateStr !== endDateStr) return 'range';
+    return 'partial';
+  }
+
+  // ربط البطاقات
+  document.getElementById('cardDone').addEventListener('click', function(){ toggleDrillDown('done'); });
+  document.getElementById('cardNotDone').addEventListener('click', function(){ toggleDrillDown('notdone'); });
+  document.getElementById('cardRemaining').addEventListener('click', function(){ toggleDrillDown('remaining'); });
+  document.getElementById('ddClose').addEventListener('click', closeDrillDown);
+
+  // ===== العرض الشامل =====
+  function renderAll(){
+    var f = getFilteredVisits();
+    var visits = f.visits;
+    renderKPIs(visits, f.mode, f.startDateStr, f.endDateStr);
+    renderOutstanding();
+    renderMap(visits);
+    renderCharts(visits);
+    renderTodayRoute();
+    renderTopLists(visits);
+    renderClientsManage($('client-search').value.trim());
+    renderVisitsTable(visits);
+    if (activeDrillDown) renderDrillDown(activeDrillDown);
+  }
 
   boot();
 })();
