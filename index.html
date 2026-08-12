@@ -85,6 +85,7 @@
     <p>اكتب كود الدخول اللي معاك عشان تفتح النظام</p>
     <input type="text" id="gate-input" placeholder="كود الدخول">
     <button id="gate-submit">دخول</button>
+    <div class="err" id="gate-err">الكود غلط، جرب تاني</div>
   </div>
 </div>
 
@@ -140,7 +141,7 @@
   var WS_NAME = params.get('ws') || '';
 
   var $ = function(id){ return document.getElementById(id); };
-  var gate = $('gate'), gateInput = $('gate-input'), gateSubmit = $('gate-submit');
+  var gate = $('gate'), gateInput = $('gate-input'), gateSubmit = $('gate-submit'), gateErr = $('gate-err');
   var app = $('app'), missing = $('missing');
 
   if (!SCRIPT_URL){
@@ -174,6 +175,7 @@
     if (!val) return;
     ACCESS_KEY = val;
     sessionStorage.setItem('fsp_key', val);
+    gateErr.style.display = 'none';
     gate.classList.add('hidden');
     showApp();
   });
