@@ -34,7 +34,6 @@
   }
   h1,h2,.num{font-family:'Cairo',sans-serif;}
 
-  /* ===== Top bar ===== */
   .topbar{
     position:sticky; top:0; z-index:20;
     background:var(--primary);
@@ -56,7 +55,6 @@
   }
   .rep-row input::placeholder{color:rgba(255,255,255,.65);}
 
-  /* ===== Sections ===== */
   .section{padding:16px 16px 0;}
   .card{
     background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
@@ -64,7 +62,6 @@
   }
   .card h2{font-size:14.5px; margin:0 0 12px; display:flex; align-items:center; gap:6px;}
 
-  /* ===== Search ===== */
   .search-box{
     display:flex; align-items:center; gap:8px;
     background:var(--bg); border:1.5px solid var(--border); border-radius:12px;
@@ -106,7 +103,6 @@
     font-size:14px; cursor:pointer;
   }
 
-  /* ===== Selected client card ===== */
   .selected-header{
     display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;
   }
@@ -131,7 +127,6 @@
   .stat .lbl{font-size:11px; color:var(--muted);}
   .stat .val{font-size:15px; font-weight:800; margin-top:2px;}
 
-  /* ===== Segmented status ===== */
   .segmented{display:flex; gap:8px; margin-bottom:14px;}
   .seg-btn{
     flex:1; padding:13px 8px; border-radius:12px; border:1.5px solid var(--border);
@@ -144,7 +139,6 @@
   .money-row{display:flex; gap:10px;}
   .money-row .field{flex:1;}
 
-  /* ===== GPS toggle ===== */
   .gps-row{
     display:flex; align-items:center; justify-content:space-between;
     background:var(--bg); border-radius:12px; padding:12px 14px;
@@ -163,7 +157,6 @@
   .switch input:checked + .slider{background:var(--primary);}
   .switch input:checked + .slider:before{transform:translateX(-19px);}
 
-  /* ===== Save bar ===== */
   .save-bar{
     position:fixed; bottom:0; right:0; left:0; z-index:30;
     background:linear-gradient(0deg, var(--bg) 60%, transparent);
@@ -184,7 +177,6 @@
   .save-btn.loading .lbl{display:none;}
   @keyframes spin{to{transform:rotate(360deg);}}
 
-  /* ===== Toast ===== */
   .toast{
     position:fixed; top:16px; right:16px; left:16px; z-index:50;
     background:var(--primary); color:#fff; padding:14px 18px; border-radius:14px;
@@ -194,7 +186,6 @@
   .toast.error{background:var(--danger);}
   .toast.show{transform:translateY(0);}
 
-  /* ===== Gate screen ===== */
   .gate{
     position:fixed; inset:0; background:var(--bg); z-index:100;
     display:flex; align-items:center; justify-content:center; padding:24px;
@@ -222,7 +213,6 @@
 </head>
 <body>
 
-<!-- ===== Access gate (fallback if opened without ?key=) ===== -->
 <div class="gate hidden" id="gate">
   <div class="gate-card">
     <h1>🔒 كود الدخول</h1>
@@ -244,7 +234,6 @@
     </div>
   </div>
 
-  <!-- ===== Step 1: pick client ===== -->
   <div class="section" id="picker-section">
     <div class="card">
       <h2>👤 اختار العميل</h2>
@@ -261,7 +250,6 @@
     </div>
   </div>
 
-  <!-- ===== Step 2: client + visit form ===== -->
   <div class="section" id="form-section" style="display:none;">
 
     <div class="card">
@@ -355,18 +343,16 @@
 (function(){
   "use strict";
 
-  // ===== إعدادات =====
   var DAY_NAMES = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
   var params = new URLSearchParams(window.location.search);
   var SCRIPT_URL = params.get('script') || '';
   var ACCESS_KEY = params.get('key') || sessionStorage.getItem('fsp_key') || '';
 
   var clients = [];
-  var selectedClient = null; // {name, phone, category, manualAddress, region, usualDay, lastInvoice, totalInvoices} أو null لو عميل جديد
+  var selectedClient = null;
   var isNewClient = false;
-  var visitStatus = null; // 'نعم' أو 'لا'
+  var visitStatus = null;
 
-  // ===== عناصر =====
   var $ = function(id){ return document.getElementById(id); };
   var gate = $('gate'), gateInput = $('gate-input'), gateSubmit = $('gate-submit'), gateErr = $('gate-err');
   var app = $('app');
@@ -378,7 +364,6 @@
     setTimeout(function(){ t.className = 'toast'; }, 2600);
   }
 
-  // ===== بوابة الدخول =====
   function boot(){
     if (!SCRIPT_URL){
       showToast('الرابط ده ناقص — كلم صاحب النظام', true);
@@ -396,6 +381,7 @@
     if (!val){ return; }
     ACCESS_KEY = val;
     sessionStorage.setItem('fsp_key', val);
+    gateErr.style.display = 'none';
     gate.classList.add('hidden');
     startApp();
   });
@@ -408,9 +394,9 @@
     loadClients();
   }
 
-  // ===== تحميل العملاء =====
   function apiUrl(action, extraParams){
-    var u = SCRIPT_URL + '?action=' + action + '&key=' + encodeURIComponent(ACCESS_KEY);
+    var separator = SCRIPT_URL.indexOf('?') !== -1 ? '&' : '?';
+    var u = SCRIPT_URL + separator + 'action=' + action + '&key=' + encodeURIComponent(ACCESS_KEY);
     if (extraParams){
       Object.keys(extraParams).forEach(function(k){
         u += '&' + k + '=' + encodeURIComponent(extraParams[k]);
@@ -439,7 +425,10 @@
         renderTodayChips();
         renderResults('');
       })
-      .catch(function(){ showToast('مفيش اتصال بالإنترنت — جرب تاني', true); });
+      .catch(function(err){
+        console.error('loadClients error:', err);
+        showToast('مفيش اتصال بالإنترنت — جرب تاني', true);
+      });
   }
 
   function renderTodayChips(){
@@ -457,7 +446,6 @@
     });
   }
 
-  // ===== البحث =====
   var searchInput = $('search-input');
   searchInput.addEventListener('input', function(){
     $('clear-search').style.display = this.value ? 'block' : 'none';
@@ -500,7 +488,6 @@
     addBtn.onclick = function(){ selectClient(null, query); };
   }
 
-  // ===== اختيار عميل =====
   function selectClient(client, newName){
     isNewClient = !client;
     selectedClient = client;
@@ -526,12 +513,16 @@
             $('stat-last').textContent = (res.data.lastInvoice || 0) + ' ج';
             $('stat-total').textContent = (res.data.totalInvoices || 0) + ' ج';
           }
-        }).catch(function(){});
+        })
+        .catch(function(err){
+          console.error('getClientDetails error:', err);
+          $('stat-last').textContent = '—';
+          $('stat-total').textContent = '—';
+        });
     } else {
       $('stat-row').style.display = 'none';
     }
 
-    // إعادة ضبط قسم الزيارة
     visitStatus = null;
     $('status-yes').className = 'seg-btn';
     $('status-no').className = 'seg-btn';
@@ -551,7 +542,6 @@
     window.scrollTo({top:0, behavior:'smooth'});
   });
 
-  // ===== حالة الزيارة =====
   $('status-yes').addEventListener('click', function(){
     visitStatus = 'نعم';
     $('status-yes').className = 'seg-btn active-yes';
@@ -571,17 +561,14 @@
   });
   $('v-paid').addEventListener('input', function(){ this.dataset.touched = '1'; });
 
-  // ===== رقم المندوب =====
   $('rep-name').addEventListener('change', function(){
     localStorage.setItem('fsp_rep_name', this.value.trim());
   });
 
-  // ===== التحقق من رقم التليفون =====
   function isValidPhone(p){
     return /^01[0125]\d{8}$/.test(p);
   }
 
-  // ===== الحفظ =====
   $('save-btn').addEventListener('click', function(){
     var name = $('c-name').value.trim();
     var phone = $('c-phone').value.trim();
@@ -616,17 +603,25 @@
     var proceed = function(lat, lng, region, detailedAddress){
       var chain = Promise.resolve();
 
-      // عميل جديد → يتسجل الأول في القائمة المرجعية
       if (isNewClient){
         chain = chain.then(function(){
           return fetch(apiUrl('addNewClient', {name:name, phone:phone, address:address, category:category}))
-            .then(function(r){ return r.json(); });
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+              if (!res.ok) {
+                throw new Error(res.error || 'فشل إضافة العميل');
+              }
+            });
         });
-      } else if (selectedClient && (selectedClient.name !== name || selectedClient.category !== category || selectedClient.manualAddress !== address)){
-        // تعديل بيانات عميل موجود
+      } else if (selectedClient && (selectedClient.name !== name || selectedClient.category !== category || selectedClient.manualAddress !== address || selectedClient.phone !== phone)){
         chain = chain.then(function(){
           return fetch(apiUrl('updateClientDetails', {phone: selectedClient.phone, newName:name, newPhone:phone, address:address, category:category}))
-            .then(function(r){ return r.json(); });
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+              if (!res.ok) {
+                throw new Error(res.error || 'فشل تحديث بيانات العميل');
+              }
+            });
         });
       }
 
@@ -646,9 +641,10 @@
         } else {
           showToast((res && res.error) || 'حصل خطأ، جرب تاني', true);
         }
-      }).catch(function(){
+      }).catch(function(err){
         setSaving(false);
-        showToast('مفيش اتصال — جرب تاني', true);
+        console.error('saveVisit error:', err);
+        showToast(err.message || 'مفيش اتصال — جرب تاني', true);
       });
     };
 
@@ -660,7 +656,6 @@
           proceed(lat, lng, region, detailedAddress);
         });
       }, function(){
-        // فشل تحديد الموقع رغم إنه مفعّل — يكمل الحفظ من غير موقع
         proceed(null, null, 'موقع غير محدد', address || 'لم يُحدد بعد');
       }, {timeout: 8000});
     } else {
