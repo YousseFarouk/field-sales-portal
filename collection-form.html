@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>تسجيل تحصيل</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Cairo:wght@700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F6F2;
+    --card:#FFFFFF;
+    --text:#1C2321;
+    --muted:#6B7280;
+    --border:#E5E2D8;
+    --primary:#0F6B5C;
+    --primary-dark:#0A4F44;
+    --primary-tint:#E4F0EC;
+    --warn:#C97A2B;
+    --warn-tint:#FBEEE0;
+    --danger:#B3432D;
+    --danger-tint:#F8E7E2;
+    --radius:16px;
+    --shadow:0 2px 12px rgba(20,25,22,0.07);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0;}
+  body{
+    background:var(--bg); color:var(--text); font-family:'Tajawal',sans-serif;
+    padding-bottom:100px; min-height:100vh;
+  }
+  h1,h2,.num{font-family:'Cairo',sans-serif;}
+
+  .topbar{
+    position:sticky; top:0; z-index:20; background:var(--warn); color:#fff;
+    padding:16px 18px 20px; border-radius:0 0 22px 22px; box-shadow:var(--shadow);
+  }
+  .topbar h1{font-size:19px; font-weight:800; margin:0 0 2px;}
+  .topbar .ws-name{font-size:12.5px; opacity:.85; margin:0;}
+  .rep-row{
+    margin-top:14px; display:flex; align-items:center; gap:8px;
+    background:rgba(255,255,255,.16); border-radius:12px; padding:8px 12px;
+  }
+  .rep-row label{font-size:12.5px; opacity:.9; white-space:nowrap;}
+  .rep-row input{
+    flex:1; background:transparent; border:none; color:#fff;
+    font-family:'Tajawal',sans-serif; font-size:14px; font-weight:500; outline:none;
+  }
+  .rep-row input::placeholder{color:rgba(255,255,255,.7);}
+
+  .section{padding:16px 16px 0;}
+  .card{
+    background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow);
+    padding:16px; margin-bottom:14px; border:1px solid var(--border);
+  }
+  .card h2{font-size:14.5px; margin:0 0 12px; display:flex; align-items:center; gap:6px;}
+
+  .search-box{
+    display:flex; align-items:center; gap:8px; background:var(--bg);
+    border:1.5px solid var(--border); border-radius:12px; padding:11px 14px;
+  }
+  .search-box input{
+    flex:1; border:none; background:transparent; font-family:'Tajawal',sans-serif;
+    font-size:15px; outline:none; color:var(--text);
+  }
+  .search-box svg{flex-shrink:0; opacity:.5;}
+  .clear-btn{border:none; background:none; font-size:16px; color:var(--muted); cursor:pointer; padding:2px 4px;}
+
+  .owe-row{display:flex; gap:8px; overflow-x:auto; margin-top:12px; padding-bottom:2px; scrollbar-width:none;}
+  .owe-row::-webkit-scrollbar{display:none;}
+  .chip{
+    flex-shrink:0; background:var(--danger-tint); color:var(--danger);
+    border:1px solid transparent; border-radius:999px; padding:7px 14px;
+    font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;
+  }
+  .chip:active{transform:scale(.97);}
+  .chip .amt{font-family:'Cairo',sans-serif; font-weight:800;}
+
+  .results{margin-top:10px; max-height:280px; overflow-y:auto;}
+  .result-item{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 4px; border-bottom:1px solid var(--border); cursor:pointer;
+  }
+  .result-item:last-child{border-bottom:none;}
+  .result-item:active{background:var(--bg);}
+  .result-name{font-weight:700; font-size:14.5px;}
+  .result-sub{font-size:12px; color:var(--muted); margin-top:2px;}
+  .badge-owe{
+    font-size:12px; font-weight:800; font-family:'Cairo',sans-serif;
+    padding:4px 10px; border-radius:999px; background:var(--danger-tint); color:var(--danger);
+  }
+  .badge-clear{
+    font-size:11px; font-weight:700; padding:4px 10px; border-radius:999px;
+    background:var(--primary-tint); color:var(--primary-dark);
+  }
+  .empty-state{text-align:center; padding:24px 10px; color:var(--muted); font-size:13px;}
+
+  .selected-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;}
+  .selected-header .name{font-size:16px; font-weight:800;}
+  .change-btn{
+    border:none; background:none; color:var(--primary); font-family:'Tajawal',sans-serif;
+    font-weight:700; font-size:12.5px; cursor:pointer;
+  }
+  .selected-sub{font-size:12.5px; color:var(--muted); margin-bottom:14px;}
+
+  .balance-banner{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--danger-tint); border-radius:12px; padding:13px 16px; margin-bottom:14px;
+  }
+  .balance-banner.clear{background:var(--primary-tint);}
+  .balance-banner .lbl{font-size:12.5px; color:var(--text); font-weight:600;}
+  .balance-banner .val{font-size:20px; font-weight:800; font-family:'Cairo',sans-serif; color:var(--danger);}
+  .balance-banner.clear .val{color:var(--primary-dark);}
+
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:5px; font-weight:500;}
+  .field input, .field textarea{
+    width:100%; border:1.5px solid var(--border); border-radius:11px; padding:11px 13px;
+    font-family:'Tajawal',sans-serif; font-size:14.5px; color:var(--text); background:#fff; outline:none;
+  }
+  .field input:focus, .field textarea:focus{border-color:var(--primary);}
+  .field textarea{resize:vertical; min-height:60px;}
+  .field .error{color:var(--danger); font-size:11.5px; margin-top:4px; display:none;}
+  .field.invalid input{border-color:var(--danger);}
+  .field.invalid .error{display:block;}
+  .amount-input{font-size:22px !important; font-weight:800; font-family:'Cairo',sans-serif; text-align:center;}
+
+  .method-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;}
+  .method-btn{
+    padding:13px 8px; border-radius:12px; border:1.5px solid var(--border); background:#fff;
+    font-family:'Tajawal',sans-serif; font-weight:700; font-size:13.5px; color:var(--text);
+    cursor:pointer; text-align:center; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+  .method-btn.active{background:var(--primary); border-color:var(--primary); color:#fff;}
+
+  .save-bar{
+    position:fixed; bottom:0; right:0; left:0; z-index:30;
+    background:linear-gradient(0deg, var(--bg) 60%, transparent); padding:18px 16px 20px;
+  }
+  .save-btn{
+    width:100%; background:var(--primary); color:#fff; border:none; border-radius:14px;
+    padding:16px; font-family:'Cairo',sans-serif; font-weight:800; font-size:16px;
+    cursor:pointer; box-shadow:0 4px 14px rgba(15,107,92,.35);
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .save-btn:disabled{opacity:.6;}
+  .save-btn .spinner{
+    width:16px; height:16px; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff;
+    border-radius:50%; animation:spin .7s linear infinite; display:none;
+  }
+  .save-btn.loading .spinner{display:inline-block;}
+  .save-btn.loading .lbl{display:none;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .toast{
+    position:fixed; top:16px; right:16px; left:16px; z-index:50;
+    background:var(--primary); color:#fff; padding:14px 18px; border-radius:14px;
+    font-weight:700; font-size:14px; text-align:center; box-shadow:0 6px 20px rgba(0,0,0,.2);
+    transform:translateY(-140%); transition:transform .3s ease;
+  }
+  .toast.error{background:var(--danger);}
+  .toast.show{transform:translateY(0);}
+
+  .gate{
+    position:fixed; inset:0; background:var(--bg); z-index:100;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  .gate.hidden{display:none;}
+  .gate-card{background:#fff; border-radius:20px; padding:26px; box-shadow:var(--shadow); width:100%; max-width:340px; text-align:center;}
+  .gate-card h1{font-size:17px; margin:0 0 6px;}
+  .gate-card p{font-size:12.5px; color:var(--muted); margin:0 0 16px;}
+  .gate-card input{
+    width:100%; border:1.5px solid var(--border); border-radius:11px; padding:12px; text-align:center;
+    font-family:'Tajawal',sans-serif; font-size:15px; margin-bottom:12px;
+  }
+  .gate-card button{
+    width:100%; background:var(--primary); color:#fff; border:none; border-radius:11px;
+    padding:12px; font-family:'Cairo',sans-serif; font-weight:800; font-size:14.5px; cursor:pointer;
+  }
+  .gate-card .err{color:var(--danger); font-size:12px; margin-top:8px; display:none;}
+
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important;} }
+</style>
+</head>
+<body>
+
+<div class="gate hidden" id="gate">
+  <div class="gate-card">
+    <h1>🔒 كود الدخول</h1>
+    <p>اكتب كود الدخول اللي معاك عشان تفتح الفورم</p>
+    <input type="text" id="gate-input" placeholder="كود الدخول" inputmode="text">
+    <button id="gate-submit">دخول</button>
+    <div class="err" id="gate-err">الكود غلط، جرب تاني</div>
+  </div>
+</div>
+
+<div id="app" style="display:none;">
+
+  <div class="topbar">
+    <h1>💵 تسجيل تحصيل</h1>
+    <p class="ws-name">فلوس اتحصلت من غير زيارة</p>
+    <div class="rep-row">
+      <label for="rep-name">👤 المندوب:</label>
+      <input type="text" id="rep-name" placeholder="اكتب اسمك">
+    </div>
+  </div>
+
+  <!-- ===== Step 1: pick client ===== -->
+  <div class="section" id="picker-section">
+    <div class="card">
+      <h2>👤 اختار العميل</h2>
+      <div class="search-box">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="search-input" placeholder="دور بالاسم أو رقم التليفون">
+        <button class="clear-btn" id="clear-search" style="display:none;">✕</button>
+      </div>
+      <div class="owe-row" id="owe-row"></div>
+      <div class="results" id="results-list"></div>
+    </div>
+  </div>
+
+  <!-- ===== Step 2: collection details ===== -->
+  <div class="section" id="form-section" style="display:none;">
+    <div class="card">
+      <div class="selected-header">
+        <span class="name" id="selected-name-display">—</span>
+        <button class="change-btn" id="change-client-btn">تغيير العميل ↺</button>
+      </div>
+      <div class="selected-sub" id="selected-phone-display"></div>
+
+      <div class="balance-banner" id="balance-banner">
+        <span class="lbl">الرصيد المستحق عليه</span>
+        <span class="val num" id="balance-val">—</span>
+      </div>
+
+      <div class="field">
+        <label>💵 المبلغ المحصل (جنيه)</label>
+        <input type="number" id="c-amount" class="amount-input" inputmode="decimal" min="0" placeholder="0">
+        <div class="error">اكتب مبلغ أكبر من صفر</div>
+      </div>
+
+      <label style="display:block; font-size:12.5px; color:var(--muted); margin-bottom:8px; font-weight:500;">طريقة التحصيل</label>
+      <div class="method-grid">
+        <button class="method-btn" data-method="نقدي">💵 نقدي</button>
+        <button class="method-btn" data-method="فودافون كاش">📱 فودافون كاش</button>
+        <button class="method-btn" data-method="إنستاباي">🏦 إنستاباي</button>
+        <button class="method-btn" data-method="تحويل بنكي">🏛️ تحويل بنكي</button>
+      </div>
+
+      <div class="field" style="margin-bottom:0;">
+        <label>📝 ملاحظة (اختياري)</label>
+        <textarea id="c-note" placeholder="أي تفاصيل حابب تسجلها..."></textarea>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="save-bar" id="save-bar" style="display:none;">
+  <button class="save-btn" id="save-btn">
+    <span class="spinner"></span>
+    <span class="lbl">💾 حفظ التحصيل</span>
+  </button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var params = new URLSearchParams(window.location.search);
+  var SCRIPT_URL = params.get('script') || '';
+  var ACCESS_KEY = params.get('key') || sessionStorage.getItem('fsp_key') || '';
+
+  var clients = [];
+  var balances = {}; // phone -> outstanding balance
+  var selectedClient = null;
+  var selectedMethod = null;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var gate = $('gate'), gateInput = $('gate-input'), gateSubmit = $('gate-submit'), gateErr = $('gate-err');
+  var app = $('app');
+
+  function showToast(msg, isError){
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(function(){ t.className = 'toast'; }, 2600);
+  }
+
+  function boot(){
+    if (!SCRIPT_URL){ showToast('الرابط ده ناقص — كلم صاحب النظام', true); return; }
+    if (!ACCESS_KEY){ gate.classList.remove('hidden'); return; }
+    startApp();
+  }
+
+  gateSubmit.addEventListener('click', function(){
+    var val = gateInput.value.trim();
+    if (!val) return;
+    ACCESS_KEY = val;
+    sessionStorage.setItem('fsp_key', val);
+    gate.classList.add('hidden');
+    startApp();
+  });
+
+  function startApp(){
+    app.style.display = 'block';
+    $('save-bar').style.display = 'block';
+    var savedRep = localStorage.getItem('fsp_rep_name');
+    if (savedRep) $('rep-name').value = savedRep;
+    loadData();
+  }
+
+  function apiUrl(action, extraParams){
+    var u = SCRIPT_URL + '?action=' + action + '&key=' + encodeURIComponent(ACCESS_KEY);
+    if (extraParams){
+      Object.keys(extraParams).forEach(function(k){ u += '&' + k + '=' + encodeURIComponent(extraParams[k]); });
+    }
+    return u;
+  }
+
+  function loadData(){
+    $('results-list').innerHTML = '<div class="empty-state">جاري تحميل العملاء...</div>';
+    Promise.all([
+      fetch(apiUrl('getAllClients')).then(function(r){ return r.json(); }),
+      fetch(apiUrl('getDashboardData')).then(function(r){ return r.json(); })
+    ]).then(function(results){
+      var clientsRes = results[0], dashRes = results[1];
+      if (!clientsRes.ok){
+        if (clientsRes.error && clientsRes.error.indexOf('مصرح') !== -1){
+          sessionStorage.removeItem('fsp_key');
+          gate.classList.remove('hidden');
+          app.style.display = 'none';
+          gateErr.style.display = 'block';
+          return;
+        }
+        showToast(clientsRes.error || 'حصل خطأ في تحميل العملاء', true);
+        return;
+      }
+      clients = clientsRes.data || [];
+      balances = {};
+      if (dashRes.ok && dashRes.data && dashRes.data.outstandingClients){
+        dashRes.data.outstandingClients.forEach(function(c){ balances[c.phone] = c.balance; });
+      }
+      renderOweChips();
+      renderResults('');
+    }).catch(function(){ showToast('مفيش اتصال بالإنترنت — جرب تاني', true); });
+  }
+
+  function renderOweChips(){
+    var owers = clients.filter(function(c){ return (balances[c.phone] || 0) > 0; })
+      .sort(function(a,b){ return (balances[b.phone]||0) - (balances[a.phone]||0); })
+      .slice(0, 10);
+    var row = $('owe-row');
+    if (owers.length === 0){ row.innerHTML = ''; return; }
+    row.innerHTML = '<span style="font-size:12px;color:var(--muted);align-self:center;">عليهم فلوس:</span>';
+    owers.forEach(function(c){
+      var chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.innerHTML = '<span>' + c.name + '</span> <span class="amt">' + balances[c.phone] + ' ج</span>';
+      chip.addEventListener('click', function(){ selectClient(c); });
+      row.appendChild(chip);
+    });
+  }
+
+  var searchInput = $('search-input');
+  searchInput.addEventListener('input', function(){
+    $('clear-search').style.display = this.value ? 'block' : 'none';
+    renderResults(this.value.trim());
+  });
+  $('clear-search').addEventListener('click', function(){
+    searchInput.value = '';
+    this.style.display = 'none';
+    renderResults('');
+  });
+
+  function renderResults(query){
+    var list = $('results-list');
+    var q = query.toLowerCase();
+    var filtered = q ? clients.filter(function(c){
+      return c.name.toLowerCase().indexOf(q) !== -1 || (c.phone || '').indexOf(q) !== -1;
+    }) : clients.slice(0, 25);
+
+    if (filtered.length === 0){
+      list.innerHTML = '<div class="empty-state">' + (q ? 'مفيش نتائج مطابقة' : 'ابدأ اكتب اسم أو رقم تليفون') + '</div>';
+      return;
+    }
+    list.innerHTML = '';
+    filtered.forEach(function(c){
+      var owed = balances[c.phone] || 0;
+      var item = document.createElement('div');
+      item.className = 'result-item';
+      item.innerHTML =
+        '<div><div class="result-name"></div><div class="result-sub"></div></div>' +
+        (owed > 0 ? '<span class="badge-owe"></span>' : '<span class="badge-clear">مفيهوش دين</span>');
+      item.querySelector('.result-name').textContent = c.name;
+      item.querySelector('.result-sub').textContent = c.phone || '';
+      if (owed > 0) item.querySelector('.badge-owe').textContent = owed + ' ج';
+      item.addEventListener('click', function(){ selectClient(c); });
+      list.appendChild(item);
+    });
+  }
+
+  function selectClient(client){
+    selectedClient = client;
+    $('picker-section').style.display = 'none';
+    $('form-section').style.display = 'block';
+    $('selected-name-display').textContent = client.name;
+    $('selected-phone-display').textContent = client.phone || '';
+
+    var owed = balances[client.phone] || 0;
+    var banner = $('balance-banner');
+    if (owed > 0){
+      banner.className = 'balance-banner';
+      $('balance-val').textContent = owed + ' جنيه';
+    } else {
+      banner.className = 'balance-banner clear';
+      $('balance-val').textContent = '0 جنيه (مفيهوش دين حالياً)';
+    }
+
+    $('c-amount').value = owed > 0 ? owed : '';
+    $('c-amount').closest = null;
+    $('c-note').value = '';
+    selectedMethod = null;
+    document.querySelectorAll('.method-btn').forEach(function(b){ b.className = 'method-btn'; });
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  $('change-client-btn').addEventListener('click', function(){
+    $('form-section').style.display = 'none';
+    $('picker-section').style.display = 'block';
+    selectedClient = null;
+    window.scrollTo({top:0, behavior:'smooth'});
+  });
+
+  document.querySelectorAll('.method-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      selectedMethod = this.dataset.method;
+      document.querySelectorAll('.method-btn').forEach(function(b){ b.className = 'method-btn'; });
+      this.className = 'method-btn active';
+    });
+  });
+
+  $('rep-name').addEventListener('change', function(){
+    localStorage.setItem('fsp_rep_name', this.value.trim());
+  });
+
+  $('save-btn').addEventListener('click', function(){
+    if (!selectedClient){ showToast('اختار عميل الأول', true); return; }
+    var amount = parseFloat($('c-amount').value);
+    var amountField = $('c-amount').closest('.field') || $('c-amount').parentElement;
+
+    if (!amount || amount <= 0){
+      amountField.classList.add('invalid');
+      showToast('اكتب مبلغ صحيح أكبر من صفر', true);
+      return;
+    }
+    amountField.classList.remove('invalid');
+
+    if (!selectedMethod){ showToast('حدد طريقة التحصيل', true); return; }
+
+    var repName = $('rep-name').value.trim();
+    var note = $('c-note').value.trim();
+
+    setSaving(true);
+    fetch(apiUrl('saveCollection', {
+      name: selectedClient.name, phone: selectedClient.phone,
+      amount: amount, method: selectedMethod, note: note, repName: repName
+    })).then(function(r){ return r.json(); })
+      .then(function(res){
+        setSaving(false);
+        if (res && res.ok){
+          showToast('✅ ' + (res.message || 'تم تسجيل التحصيل'));
+          resetToPicker();
+        } else {
+          showToast((res && res.error) || 'حصل خطأ، جرب تاني', true);
+        }
+      }).catch(function(){
+        setSaving(false);
+        showToast('مفيش اتصال — جرب تاني', true);
+      });
+  });
+
+  function setSaving(state){
+    var btn = $('save-btn');
+    btn.disabled = state;
+    btn.className = 'save-btn' + (state ? ' loading' : '');
+  }
+
+  function resetToPicker(){
+    $('form-section').style.display = 'none';
+    $('picker-section').style.display = 'block';
+    selectedClient = null;
+    $('search-input').value = '';
+    loadData();
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+
+  boot();
+})();
+</script>
+
+</body>
+</html>
