@@ -312,7 +312,9 @@
   }
 
   function apiUrl(action, extraParams){
-    var u = SCRIPT_URL + '?action=' + action + '&key=' + encodeURIComponent(ACCESS_KEY);
+    // تحسين بناء الرابط ليتعامل مع وجود ? سابقة في SCRIPT_URL
+    var separator = SCRIPT_URL.indexOf('?') !== -1 ? '&' : '?';
+    var u = SCRIPT_URL + separator + 'action=' + action + '&key=' + encodeURIComponent(ACCESS_KEY);
     if (extraParams){
       Object.keys(extraParams).forEach(function(k){ u += '&' + k + '=' + encodeURIComponent(extraParams[k]); });
     }
@@ -344,7 +346,10 @@
       }
       renderOweChips();
       renderResults('');
-    }).catch(function(){ showToast('مفيش اتصال بالإنترنت — جرب تاني', true); });
+    }).catch(function(err){
+      console.error('loadData error:', err);
+      showToast('مفيش اتصال بالإنترنت — جرب تاني', true);
+    });
   }
 
   function renderOweChips(){
@@ -419,7 +424,7 @@
     }
 
     $('c-amount').value = owed > 0 ? owed : '';
-    $('c-amount').closest = null;
+    // تمت إزالة السطر الخاطئ الذي كان يكسر الدالة closest
     $('c-note').value = '';
     selectedMethod = null;
     document.querySelectorAll('.method-btn').forEach(function(b){ b.className = 'method-btn'; });
@@ -448,7 +453,7 @@
   $('save-btn').addEventListener('click', function(){
     if (!selectedClient){ showToast('اختار عميل الأول', true); return; }
     var amount = parseFloat($('c-amount').value);
-    var amountField = $('c-amount').closest('.field') || $('c-amount').parentElement;
+    var amountField = $('c-amount').closest('.field'); // يعمل الآن بشكل صحيح
 
     if (!amount || amount <= 0){
       amountField.classList.add('invalid');
@@ -460,6 +465,10 @@
     if (!selectedMethod){ showToast('حدد طريقة التحصيل', true); return; }
 
     var repName = $('rep-name').value.trim();
+    if (!repName){
+      showToast('اكتب اسم المندوب الأول', true);
+      return;
+    }
     var note = $('c-note').value.trim();
 
     setSaving(true);
@@ -475,8 +484,9 @@
         } else {
           showToast((res && res.error) || 'حصل خطأ، جرب تاني', true);
         }
-      }).catch(function(){
+      }).catch(function(err){
         setSaving(false);
+        console.error('saveCollection error:', err);
         showToast('مفيش اتصال — جرب تاني', true);
       });
   });
