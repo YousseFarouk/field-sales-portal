@@ -206,6 +206,12 @@
 
   .empty-state{text-align:center; padding:24px 10px; color:var(--muted); font-size:13px;}
 
+  /* تنبيه زيارة اليوم */
+  .visit-exists-banner{
+    background:var(--warn-tint); color:var(--warn); border-radius:12px; padding:10px 14px;
+    margin-bottom:14px; font-size:13px; font-weight:700; display:none;
+  }
+
   @media (prefers-reduced-motion: reduce){
     *{animation:none !important; transition:none !important;}
   }
@@ -256,6 +262,10 @@
       <div class="selected-header">
         <span class="name" id="selected-name-display">—</span>
         <button class="change-btn" id="change-client-btn">تغيير العميل ↺</button>
+      </div>
+
+      <div class="visit-exists-banner" id="visit-exists-banner">
+        ⚠️ العميل ده اتسجلت له زيارة النهارده. تقدر تعدّل عليها.
       </div>
 
       <div class="stat-row" id="stat-row" style="display:none;">
@@ -349,6 +359,7 @@
   var ACCESS_KEY = params.get('key') || sessionStorage.getItem('fsp_key') || '';
 
   var clients = [];
+  var allVisits = []; // لتتبع زيارات اليوم
   var selectedClient = null;
   var isNewClient = false;
   var visitStatus = null;
@@ -356,6 +367,13 @@
   var $ = function(id){ return document.getElementById(id); };
   var gate = $('gate'), gateInput = $('gate-input'), gateSubmit = $('gate-submit'), gateErr = $('gate-err');
   var app = $('app');
+
+  // توحيد رقم التليفون
+  function normalizePhone(phone){
+    var cleaned = (phone || '').toString().replace(/\D/g, '');
+    if (cleaned.length === 10 && cleaned.charAt(0) !== '0') cleaned = '0' + cleaned;
+    return cleaned;
+  }
 
   function showToast(msg, isError){
     var t = $('toast');
@@ -391,7 +409,7 @@
     $('save-bar').style.display = 'block';
     var savedRep = localStorage.getItem('fsp_rep_name');
     if (savedRep) $('rep-name').value = savedRep;
-    loadClients();
+    loadClientsAndVisits();
   }
 
   function apiUrl(action, extraParams){
@@ -405,30 +423,37 @@
     return u;
   }
 
-  function loadClients(){
+  function loadClientsAndVisits(){
     $('results-list').innerHTML = '<div class="empty-state">جاري تحميل العملاء...</div>';
-    fetch(apiUrl('getAllClients'))
-      .then(function(r){ return r.json(); })
-      .then(function(res){
-        if (!res.ok){
-          if (res.error && res.error.indexOf('مصرح') !== -1){
-            sessionStorage.removeItem('fsp_key');
-            gate.classList.remove('hidden');
-            app.style.display = 'none';
-            gateErr.style.display = 'block';
-            return;
-          }
-          showToast(res.error || 'حصل خطأ في تحميل العملاء', true);
+    Promise.all([
+      fetch(apiUrl('getAllClients')).then(function(r){ return r.json(); }),
+      fetch(apiUrl('getDashboardData')).then(function(r){ return r.json(); })
+    ]).then(function(results){
+      var clientsRes = results[0], dashRes = results[1];
+      if (!clientsRes.ok){
+        if (clientsRes.error && clientsRes.error.indexOf('مصرح') !== -1){
+          sessionStorage.removeItem('fsp_key');
+          gate.classList.remove('hidden');
+          app.style.display = 'none';
+          gateErr.style.display = 'block';
           return;
         }
-        clients = res.data || [];
-        renderTodayChips();
-        renderResults('');
-      })
-      .catch(function(err){
-        console.error('loadClients error:', err);
-        showToast('مفيش اتصال بالإنترنت — جرب تاني', true);
-      });
+        showToast(clientsRes.error || 'حصل خطأ في تحميل العملاء', true);
+        return;
+      }
+      clients = clientsRes.data || [];
+      // تطبيع أرقام العملاء
+      clients.forEach(function(c){ c.phone = normalizePhone(c.phone); });
+
+      if (dashRes.ok && dashRes.data && dashRes.data.allVisits) {
+        allVisits = dashRes.data.allVisits;
+      }
+      renderTodayChips();
+      renderResults('');
+    }).catch(function(err){
+      console.error('loadClientsAndVisits error:', err);
+      showToast('مفيش اتصال بالإنترنت — جرب تاني', true);
+    });
   }
 
   function renderTodayChips(){
@@ -519,19 +544,72 @@
           $('stat-last').textContent = '—';
           $('stat-total').textContent = '—';
         });
+
+      // === البحث عن زيارة اليوم لنفس العميل ===
+      var todayStr = new Date().toISOString().slice(0,10);
+      var todayVisit = null;
+      var clientPhone = normalizePhone(client.phone);
+      for (var i = 0; i < allVisits.length; i++) {
+        var v = allVisits[i];
+        if (normalizePhone(v.phone) === clientPhone && v.date && v.date.slice(0,10) === todayStr) {
+          todayVisit = v;
+          break;
+        }
+      }
+
+      var banner = $('visit-exists-banner');
+      if (todayVisit) {
+        banner.style.display = 'block';
+        // تعبئة النموذج ببيانات الزيارة الموجودة
+        visitStatus = todayVisit.status;
+        if (visitStatus === 'نعم') {
+          $('status-yes').className = 'seg-btn active-yes';
+          $('status-no').className = 'seg-btn';
+          $('yes-fields').style.display = 'block';
+          $('reason-field').style.display = 'none';
+          $('v-invoice').value = todayVisit.invoice || '';
+          $('v-paid').value = todayVisit.paidNow || '';
+        } else if (visitStatus === 'لا') {
+          $('status-yes').className = 'seg-btn';
+          $('status-no').className = 'seg-btn active-no';
+          $('yes-fields').style.display = 'none';
+          $('reason-field').style.display = 'block';
+          $('v-reason').value = todayVisit.reason || '';
+        } else {
+          $('status-yes').className = 'seg-btn';
+          $('status-no').className = 'seg-btn';
+          $('yes-fields').style.display = 'none';
+          $('reason-field').style.display = 'none';
+        }
+        $('v-note').value = todayVisit.note || '';
+      } else {
+        banner.style.display = 'none';
+        // إعادة تعيين حقول الزيارة
+        visitStatus = null;
+        $('status-yes').className = 'seg-btn';
+        $('status-no').className = 'seg-btn';
+        $('yes-fields').style.display = 'none';
+        $('reason-field').style.display = 'none';
+        $('v-invoice').value = '';
+        $('v-paid').value = '';
+        $('v-reason').value = '';
+        $('v-note').value = '';
+      }
     } else {
       $('stat-row').style.display = 'none';
+      $('visit-exists-banner').style.display = 'none';
+      // عميل جديد: إعادة تعيين
+      visitStatus = null;
+      $('status-yes').className = 'seg-btn';
+      $('status-no').className = 'seg-btn';
+      $('yes-fields').style.display = 'none';
+      $('reason-field').style.display = 'none';
+      $('v-invoice').value = '';
+      $('v-paid').value = '';
+      $('v-reason').value = '';
+      $('v-note').value = '';
     }
 
-    visitStatus = null;
-    $('status-yes').className = 'seg-btn';
-    $('status-no').className = 'seg-btn';
-    $('yes-fields').style.display = 'none';
-    $('reason-field').style.display = 'none';
-    $('v-invoice').value = '';
-    $('v-paid').value = '';
-    $('v-reason').value = '';
-    $('v-note').value = '';
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
@@ -566,12 +644,12 @@
   });
 
   function isValidPhone(p){
-    return /^01[0125]\d{8}$/.test(p);
+    return /^01[0125]\d{8}$/.test(normalizePhone(p));
   }
 
   $('save-btn').addEventListener('click', function(){
     var name = $('c-name').value.trim();
-    var phone = $('c-phone').value.trim();
+    var phone = normalizePhone($('c-phone').value.trim());
     var category = $('c-category').value.trim();
     var address = $('c-address').value.trim();
 
@@ -608,19 +686,15 @@
           return fetch(apiUrl('addNewClient', {name:name, phone:phone, address:address, category:category}))
             .then(function(r){ return r.json(); })
             .then(function(res){
-              if (!res.ok) {
-                throw new Error(res.error || 'فشل إضافة العميل');
-              }
+              if (!res.ok) throw new Error(res.error || 'فشل إضافة العميل');
             });
         });
-      } else if (selectedClient && (selectedClient.name !== name || selectedClient.category !== category || selectedClient.manualAddress !== address || selectedClient.phone !== phone)){
+      } else if (selectedClient && (selectedClient.name !== name || selectedClient.category !== category || selectedClient.manualAddress !== address || normalizePhone(selectedClient.phone) !== phone)){
         chain = chain.then(function(){
-          return fetch(apiUrl('updateClientDetails', {phone: selectedClient.phone, newName:name, newPhone:phone, address:address, category:category}))
+          return fetch(apiUrl('updateClientDetails', {phone: normalizePhone(selectedClient.phone), newName:name, newPhone:phone, address:address, category:category}))
             .then(function(r){ return r.json(); })
             .then(function(res){
-              if (!res.ok) {
-                throw new Error(res.error || 'فشل تحديث بيانات العميل');
-              }
+              if (!res.ok) throw new Error(res.error || 'فشل تحديث بيانات العميل');
             });
         });
       }
@@ -687,7 +761,8 @@
     selectedClient = null;
     $('search-input').value = '';
     $('gps-status').textContent = 'هيتحدد تلقائي وقت الحفظ';
-    loadClients();
+    $('visit-exists-banner').style.display = 'none';
+    loadClientsAndVisits();
     window.scrollTo({top:0, behavior:'smooth'});
   }
 
