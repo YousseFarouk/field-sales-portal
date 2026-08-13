@@ -273,7 +273,7 @@
   var ACCESS_KEY = params.get('key') || sessionStorage.getItem('fsp_key') || '';
 
   var clients = [];
-  var balances = {}; // phone -> outstanding balance
+  var balances = {}; // phone -> outstanding balance (نستخدم أرقام موحدة)
   var selectedClient = null;
   var selectedMethod = null;
 
@@ -288,6 +288,15 @@
     setTimeout(function(){ t.className = 'toast'; }, 2600);
   }
 
+  // توحيد رقم التليفون: إزالة غير الأرقام، إضافة صفر لو 10 أرقام
+  function normalizePhone(phone){
+    var cleaned = (phone || '').toString().replace(/\D/g, '');
+    if (cleaned.length === 10 && cleaned.charAt(0) !== '0') {
+      cleaned = '0' + cleaned;
+    }
+    return cleaned;
+  }
+
   function boot(){
     if (!SCRIPT_URL){ showToast('الرابط ده ناقص — كلم صاحب النظام', true); return; }
     if (!ACCESS_KEY){ gate.classList.remove('hidden'); return; }
@@ -299,6 +308,7 @@
     if (!val) return;
     ACCESS_KEY = val;
     sessionStorage.setItem('fsp_key', val);
+    gateErr.style.display = 'none';
     gate.classList.add('hidden');
     startApp();
   });
@@ -312,7 +322,6 @@
   }
 
   function apiUrl(action, extraParams){
-    // تحسين بناء الرابط ليتعامل مع وجود ? سابقة في SCRIPT_URL
     var separator = SCRIPT_URL.indexOf('?') !== -1 ? '&' : '?';
     var u = SCRIPT_URL + separator + 'action=' + action + '&key=' + encodeURIComponent(ACCESS_KEY);
     if (extraParams){
@@ -340,9 +349,14 @@
         return;
       }
       clients = clientsRes.data || [];
+      // تطبيع أرقام العملاء
+      clients.forEach(function(c){ c.phone = normalizePhone(c.phone); });
       balances = {};
       if (dashRes.ok && dashRes.data && dashRes.data.outstandingClients){
-        dashRes.data.outstandingClients.forEach(function(c){ balances[c.phone] = c.balance; });
+        dashRes.data.outstandingClients.forEach(function(c){ 
+          var p = normalizePhone(c.phone);
+          balances[p] = c.balance; 
+        });
       }
       renderOweChips();
       renderResults('');
@@ -424,7 +438,6 @@
     }
 
     $('c-amount').value = owed > 0 ? owed : '';
-    // تمت إزالة السطر الخاطئ الذي كان يكسر الدالة closest
     $('c-note').value = '';
     selectedMethod = null;
     document.querySelectorAll('.method-btn').forEach(function(b){ b.className = 'method-btn'; });
@@ -453,7 +466,7 @@
   $('save-btn').addEventListener('click', function(){
     if (!selectedClient){ showToast('اختار عميل الأول', true); return; }
     var amount = parseFloat($('c-amount').value);
-    var amountField = $('c-amount').closest('.field'); // يعمل الآن بشكل صحيح
+    var amountField = $('c-amount').closest('.field');
 
     if (!amount || amount <= 0){
       amountField.classList.add('invalid');
