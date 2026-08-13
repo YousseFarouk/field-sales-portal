@@ -151,6 +151,11 @@
 
   if (WS_NAME) $('ws-name').textContent = WS_NAME;
 
+  // لو المفتاح جه من الرابط، نخزنه في sessionStorage للاحتفاظ به أثناء التنقل
+  if (ACCESS_KEY && !sessionStorage.getItem('fsp_key')) {
+    sessionStorage.setItem('fsp_key', ACCESS_KEY);
+  }
+
   function buildLinks(){
     var qs = 'script=' + encodeURIComponent(SCRIPT_URL) + '&key=' + encodeURIComponent(ACCESS_KEY) +
              (WS_NAME ? ('&ws=' + encodeURIComponent(WS_NAME)) : '');
@@ -161,6 +166,7 @@
 
   function showApp(){
     app.style.display = 'block';
+    gateErr.style.display = 'none'; // إخفاء أي رسالة خطأ قديمة
     buildLinks();
   }
 
