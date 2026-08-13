@@ -375,6 +375,15 @@
     return toLocalDateStr(d);
   }
 
+  // توحيد رقم التليفون: إزالة غير الأرقام، إضافة صفر لو 10 أرقام
+  function normalizePhone(phone){
+    var cleaned = (phone || '').toString().replace(/\D/g, '');
+    if (cleaned.length === 10 && cleaned.charAt(0) !== '0') {
+      cleaned = '0' + cleaned;
+    }
+    return cleaned;
+  }
+
   function showToast(msg, isError){
     var t = $('toast');
     t.textContent = msg;
@@ -426,6 +435,10 @@
         throw new Error(res.error || 'حصل خطأ في التحميل');
       }
       data = res.data;
+      // تطبيع أرقام العملاء والزيارات
+      if (data.allClients) data.allClients.forEach(function(c){ c.phone = normalizePhone(c.phone); });
+      if (data.allVisits) data.allVisits.forEach(function(v){ v.phone = normalizePhone(v.phone); });
+      if (data.outstandingClients) data.outstandingClients.forEach(function(c){ c.phone = normalizePhone(c.phone); });
       populateRepFilter();
       renderAll();
       loadingOverlay.style.display = 'none';
@@ -462,19 +475,15 @@
       startPeriod = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
-    // إذا تم تحديد تواريخ يدوية، تتجاوز أزرار الفترة
     var visits = (data.allVisits || []).filter(function(v){
       if (!v.date) return false;
       var d = new Date(v.date);
       var vDay = toLocalDateStr(v.date);
 
-      // فلترة حسب الأزرار (إذا لم يتم تحديد تواريخ)
       if (!startDateStr && !endDateStr) {
         if (currentPeriod === 'today' && startPeriod && d < startPeriod) return false;
         if (currentPeriod === '7d' && startPeriod && d < startPeriod) return false;
-        // all => لا فلترة زمنية
       }
-      // فلترة حسب التواريخ اليدوية (لها الأولوية)
       if (startDateStr && vDay < startDateStr) return false;
       if (endDateStr && vDay > endDateStr) return false;
 
@@ -482,7 +491,6 @@
       return true;
     });
 
-    // تحديد mode لاستخدامه في حساب المتبقي ونسبة الإنجاز
     var mode = (!startDateStr && !endDateStr) ? (currentPeriod === 'all' ? 'all' : (currentPeriod === 'today' ? 'single' : 'range')) : (startDateStr === endDateStr ? 'single' : 'range');
     if ((startDateStr && !endDateStr) || (!startDateStr && endDateStr)) mode = 'partial';
 
@@ -496,9 +504,9 @@
 
     if (mode === 'all' || mode === 'partial') {
       var everVisitedPhones = {};
-      allVisitsEver.forEach(function(v){ if (v.phone) everVisitedPhones[v.phone.replace(/\s+/g,'')] = true; });
+      allVisitsEver.forEach(function(v){ if (v.phone) everVisitedPhones[normalizePhone(v.phone)] = true; });
       return allClients.filter(function(c){
-        var p = (c.phone || '').replace(/\s+/g, '');
+        var p = normalizePhone(c.phone);
         return !everVisitedPhones[p];
       });
     }
@@ -508,10 +516,10 @@
       var scheduled = allClients.filter(function(c){ return c.day === weekday; });
       var visitedPhonesThatDay = {};
       allVisitsEver.forEach(function(v){
-        if (v.date && toLocalDateStr(v.date) === startDateStr && v.phone) visitedPhonesThatDay[v.phone.replace(/\s+/g,'')] = true;
+        if (v.date && toLocalDateStr(v.date) === startDateStr && v.phone) visitedPhonesThatDay[normalizePhone(v.phone)] = true;
       });
       return scheduled.filter(function(c){
-        var p = (c.phone || '').replace(/\s+/g, '');
+        var p = normalizePhone(c.phone);
         return !visitedPhonesThatDay[p];
       });
     }
@@ -525,17 +533,17 @@
         var scheduledThatDay = allClients.filter(function(c){ return c.day === wd; });
         var visitedPhonesThatDay = {};
         allVisitsEver.forEach(function(v){
-          if (v.date && toLocalDateStr(v.date) === cursor && v.phone) visitedPhonesThatDay[v.phone.replace(/\s+/g,'')] = true;
+          if (v.date && toLocalDateStr(v.date) === cursor && v.phone) visitedPhonesThatDay[normalizePhone(v.phone)] = true;
         });
         scheduledThatDay.forEach(function(c){
-          var p = (c.phone || '').replace(/\s+/g, '');
+          var p = normalizePhone(c.phone);
           if (p && !visitedPhonesThatDay[p]) missedPhones[p] = true;
         });
         cursor = addDaysStr(cursor, 1);
         guard++;
       }
       return allClients.filter(function(c){
-        var p = (c.phone || '').replace(/\s+/g, '');
+        var p = normalizePhone(c.phone);
         return missedPhones[p];
       });
     }
@@ -546,7 +554,7 @@
   function buildClientsByPhone() {
     var map = {};
     (data.allClients || []).forEach(function(c){
-      var p = (c.phone || '').replace(/\s+/g, '');
+      var p = normalizePhone(c.phone);
       if (p) map[p] = c;
     });
     return map;
@@ -565,7 +573,6 @@
     $('kpi-avg').textContent = avg + ' ج';
     $('kpi-invoiced').textContent = invoiced + ' ج';
 
-    // المتبقي
     var remainingList = computeRemainingList(mode, startDateStr, endDateStr);
     $('kpi-remaining').textContent = remainingList.length;
     var scopeLabel = $('remaining-scope');
@@ -574,7 +581,6 @@
     else if (mode === 'range') scopeLabel.textContent = 'المدى المحدد';
     else scopeLabel.textContent = 'غير محدد';
 
-    // نسبة الإنجاز الذكية
     var rateText = '0%';
     var rateNote = '';
     if (mode === 'single') {
@@ -808,11 +814,11 @@
 
       row.querySelector('.btn-save').addEventListener('click', function(){
         var newName = row.querySelector('.e-name').value.trim();
-        var newPhone = row.querySelector('.e-phone').value.trim();
+        var newPhone = normalizePhone(row.querySelector('.e-phone').value.trim());
         var newCategory = row.querySelector('.e-category').value.trim();
         var newAddress = row.querySelector('.e-address').value.trim();
         if (!/^01[0125]\d{8}$/.test(newPhone)){ showToast('رقم التليفون مش صحيح', true); return; }
-        fetch(apiUrl('updateClientDetails', {phone:c.phone, newName:newName, newPhone:newPhone, category:newCategory, address:newAddress}))
+        fetch(apiUrl('updateClientDetails', {phone: normalizePhone(c.phone), newName:newName, newPhone:newPhone, category:newCategory, address:newAddress}))
           .then(function(r){ return r.json(); }).then(function(res){
             if (res.ok){ showToast('✅ اتحدث بنجاح'); loadData(); }
             else { showToast(res.message || 'حصل خطأ', true); }
@@ -820,8 +826,8 @@
       });
 
       row.querySelector('.btn-delete').addEventListener('click', function(){
-        if (!confirm('متأكد إنك عايز تحذف "' + c.name + '"؟ سجله التاريخي هيفضل محفوظ.')) return;
-        fetch(apiUrl('deleteClient', {phone:c.phone})).then(function(r){ return r.json(); }).then(function(res){
+        if (!confirm('متأكد إنك عايز تحذف "' + c.name + '"؟ إذا كان عليه رصيد مستحق، الحذف هيرفض.')) return;
+        fetch(apiUrl('deleteClient', {phone: normalizePhone(c.phone)})).then(function(r){ return r.json(); }).then(function(res){
           if (res.ok){ showToast('تم الحذف'); loadData(); }
           else { showToast(res.message || 'حصل خطأ', true); }
         }).catch(function(err){ console.error(err); showToast('مفيش اتصال', true); });
@@ -835,9 +841,9 @@
     var name = prompt('اسم العميل الجديد:');
     if (!name) return;
     var phone = prompt('رقم تليفونه (11 رقم):');
-    if (!phone || !/^01[0125]\d{8}$/.test(phone.trim())){ showToast('رقم التليفون مش صحيح', true); return; }
+    if (!phone || !/^01[0125]\d{8}$/.test(normalizePhone(phone))){ showToast('رقم التليفون مش صحيح', true); return; }
     var category = prompt('التصنيف (نوع النشاط):') || '';
-    fetch(apiUrl('addNewClient', {name:name.trim(), phone:phone.trim(), category:category, address:''}))
+    fetch(apiUrl('addNewClient', {name:name.trim(), phone:normalizePhone(phone.trim()), category:category, address:''}))
       .then(function(r){ return r.json(); }).then(function(res){
         if (res.ok){ showToast('✅ ' + res.message); loadData(); }
         else { showToast(res.message || 'حصل خطأ', true); }
@@ -894,7 +900,6 @@
       document.querySelectorAll('.period-btn').forEach(function(b){ b.className = 'period-btn'; });
       this.className = 'period-btn active';
       currentPeriod = this.dataset.period;
-      // عند اختيار زر فترة، نمسح التواريخ اليدوية
       $('startDate').value = '';
       $('endDate').value = '';
       renderAll();
@@ -907,7 +912,6 @@
   });
 
   $('startDate').addEventListener('change', function(){
-    // إلغاء تفعيل أزرار الفترة
     document.querySelectorAll('.period-btn').forEach(function(b){ b.className = 'period-btn'; });
     renderAll();
   });
@@ -916,7 +920,6 @@
     renderAll();
   });
 
-  // أزرار الخريطة
   $('mapHeatBtn').addEventListener('click', function(){ currentMapMode = 'heat'; $('mapHeatBtn').classList.add('active'); $('mapPointsBtn').classList.remove('active'); renderMap(getFilteredVisits().visits); });
   $('mapPointsBtn').addEventListener('click', function(){ currentMapMode = 'points'; $('mapPointsBtn').classList.add('active'); $('mapHeatBtn').classList.remove('active'); renderMap(getFilteredVisits().visits); });
 
@@ -967,7 +970,7 @@
       var rows = visits.filter(function(v){ return v.status === wantedStatus; });
       count = rows.length;
       rowsHtml = rows.map(function(v){
-        var phoneClean = (v.phone || '').replace(/\s+/g, '');
+        var phoneClean = normalizePhone(v.phone);
         var clientInfo = clientsByPhone[phoneClean];
         var locationText = v.detailedAddress || v.region || (clientInfo ? (clientInfo.manualAddress || clientInfo.region) : '') || '';
         var lastInv = clientInfo ? clientInfo.lastInvoice : v.invoice;
@@ -1003,13 +1006,11 @@
     return 'partial';
   }
 
-  // ربط البطاقات
   document.getElementById('cardDone').addEventListener('click', function(){ toggleDrillDown('done'); });
   document.getElementById('cardNotDone').addEventListener('click', function(){ toggleDrillDown('notdone'); });
   document.getElementById('cardRemaining').addEventListener('click', function(){ toggleDrillDown('remaining'); });
   document.getElementById('ddClose').addEventListener('click', closeDrillDown);
 
-  // ===== العرض الشامل =====
   function renderAll(){
     var f = getFilteredVisits();
     var visits = f.visits;
